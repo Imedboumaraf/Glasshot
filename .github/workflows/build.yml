@@ -14,32 +14,40 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y unzip
+          rm -rf app
+          mkdir -p app
           unzip -o glassshot.zip -d app
+          echo "=== Top level after unzip ==="
           ls -la app
+          echo "=== Find package.json ==="
+          find app -maxdepth 6 -name package.json -print
 
-      - name: Detect project folder
+      - name: Set PROJECT_DIR
         run: |
-          # Try common layouts. Adjust if your zip extracts differently.
-          if [ -f "app/package.json" ]; then
-            echo "PROJECT_DIR=app" >> $GITHUB_ENV
-          elif [ -f "app/glassshot/package.json" ]; then
-            echo "PROJECT_DIR=app/glassshot" >> $GITHUB_ENV
-          else
-            echo "Could not find package.json after unzip."
-            find app -maxdepth 3 -type f -name package.json -print
+          PKG_PATH=$(find app -maxdepth 6 -name package.json | head -n 1)
+          if [ -z "$PKG_PATH" ]; then
+            echo "ERROR: package.json not found in extracted zip."
             exit 1
           fi
+          PROJECT_DIR=$(dirname "$PKG_PATH")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          echo "Using PROJECT_DIR=$PROJECT_DIR"
+          echo "=== PROJECT_DIR contents ==="
+          ls -la "$PROJECT_DIR"
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
-          cache-dependency-path: ${{ env.PROJECT_DIR }}/package-lock.json
 
-      - name: Install deps
+      - name: Install dependencies
         working-directory: ${{ env.PROJECT_DIR }}
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       - name: Build
         working-directory: ${{ env.PROJECT_DIR }}
