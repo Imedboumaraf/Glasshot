@@ -1,0 +1,52 @@
+name: Build GlassShot (no local Node)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Unzip project
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip
+          unzip -o glassshot.zip -d app
+          ls -la app
+
+      - name: Detect project folder
+        run: |
+          # Try common layouts. Adjust if your zip extracts differently.
+          if [ -f "app/package.json" ]; then
+            echo "PROJECT_DIR=app" >> $GITHUB_ENV
+          elif [ -f "app/glassshot/package.json" ]; then
+            echo "PROJECT_DIR=app/glassshot" >> $GITHUB_ENV
+          else
+            echo "Could not find package.json after unzip."
+            find app -maxdepth 3 -type f -name package.json -print
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ${{ env.PROJECT_DIR }}/package-lock.json
+
+      - name: Install deps
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: npm ci
+
+      - name: Build
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: npm run build
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: glassshot-dist
+          path: ${{ env.PROJECT_DIR }}/dist
